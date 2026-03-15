@@ -148,22 +148,19 @@ h2.slide-title {
 if "slide" not in st.session_state:
     st.session_state.slide = 1
 
-if "q1_done" not in st.session_state:
-    st.session_state.q1_done = False
-    st.session_state.q2_done = False
-    st.session_state.q3_done = False
-    st.session_state.q1_correct = False
-    st.session_state.q2_correct = False
-    st.session_state.q3_correct = False
-
-if "hl_checked" not in st.session_state:
-    st.session_state.hl_checked = False
-
-if "writing_checked" not in st.session_state:
-    st.session_state.writing_checked = False
-
-if "selected_prompt" not in st.session_state:
-    st.session_state.selected_prompt = None
+defaults = {
+    "q1_done": False, "q2_done": False, "q3_done": False,
+    "q1_correct": False, "q2_correct": False, "q3_correct": False,
+    "q1_show": False, "q2_show": False, "q3_show": False,
+    "q1_fb_show": False, "q2_fb_show": False, "q3_fb_show": False,
+    "hl_checked": False,
+    "writing_checked": False,
+    "writing_fb_show": False,
+    "selected_prompt": None,
+}
+for k, v in defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 slide = st.session_state.slide
 
@@ -275,7 +272,7 @@ elif slide == 3:
     """, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SLIDE 4 – Quiz
+# SLIDE 4 – Quiz  (answers hidden until student clicks to reveal)
 # ══════════════════════════════════════════════════════════════════════════════
 elif slide == 4:
     st.markdown("""
@@ -285,74 +282,96 @@ elif slide == 4:
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Q1
-    st.markdown("**Question 1 of 3** — Convert this Active sentence to Passive:")
-    st.code('"Police arrested the suspect."', language=None)
+    # ── helper
+    def quiz_block(qnum, prompt, sentence, options, correct_idx, fb_ok, fb_bad):
+        """Render one quiz question with hidden options and hidden feedback."""
+        show_key   = f"q{qnum}_show"
+        done_key   = f"q{qnum}_done"
+        correct_key= f"q{qnum}_correct"
+        fb_key     = f"q{qnum}_fb_show"
+        radio_key  = f"q{qnum}"
 
-    q1_options = [
-        "The suspect arrested police.",
-        "The suspect was arrested.",
-        "Arrested was the suspect.",
-    ]
-    if not st.session_state.q1_done:
-        choice = st.radio("Choose the correct passive sentence:", q1_options, key="q1", index=None)
-        if st.button("Submit Answer", key="q1_btn"):
-            if choice is not None:
-                st.session_state.q1_done = True
-                st.session_state.q1_correct = (choice == q1_options[1])
+        st.markdown(f"**Question {qnum} of 3** — {prompt}")
+        st.code(sentence, language=None)
+
+        # Step 1 – reveal options
+        if not st.session_state[show_key]:
+            if st.button("👁️ Show Answer Options", key=f"show_btn_{qnum}"):
+                st.session_state[show_key] = True
                 st.rerun()
-    else:
-        if st.session_state.q1_correct:
-            st.markdown('<div class="fb ok">✅ <strong>Correct!</strong> "The suspect" (the object) moves to the front, and "was arrested" (was + past participle of <em>arrest</em>) follows. Well done!</div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="fb bad">❌ <strong>Not quite.</strong> Remember the recipe: move the object to the front, then add <em>was/were</em> + past participle. The answer is: <em>"The suspect was arrested."</em></div>', unsafe_allow_html=True)
+            # Step 2 – pick & submit
+            if not st.session_state[done_key]:
+                choice = st.radio("Choose the correct passive sentence:", options,
+                                  key=radio_key, index=None)
+                if st.button("✔️ Submit Answer", key=f"submit_btn_{qnum}"):
+                    if choice is not None:
+                        st.session_state[done_key]   = True
+                        st.session_state[correct_key]= (choice == options[correct_idx])
+                        st.rerun()
+            else:
+                # Show which was chosen, greyed out
+                st.radio("Your answer:", options, key=radio_key,
+                         index=options.index(
+                             options[correct_idx]
+                             if st.session_state[correct_key]
+                             else options[
+                                 [i for i in range(len(options)) if i != correct_idx][0]
+                             ]
+                         ), disabled=True)
+
+                # Step 3 – reveal feedback
+                if not st.session_state[fb_key]:
+                    if st.button("💬 Reveal Feedback", key=f"fb_btn_{qnum}"):
+                        st.session_state[fb_key] = True
+                        st.rerun()
+                else:
+                    if st.session_state[correct_key]:
+                        st.markdown(f'<div class="fb ok">✅ <strong>Correct!</strong> {fb_ok}</div>',
+                                    unsafe_allow_html=True)
+                    else:
+                        st.markdown(f'<div class="fb bad">❌ <strong>Not quite.</strong> {fb_bad}</div>',
+                                    unsafe_allow_html=True)
+
+    quiz_block(
+        1,
+        "Convert this Active sentence to Passive:",
+        '"Police arrested the suspect."',
+        ["The suspect arrested police.",
+         "The suspect was arrested.",
+         "Arrested was the suspect."],
+        correct_idx=1,
+        fb_ok='"The suspect" (the object) moves to the front, and "was arrested" (was + past participle of <em>arrest</em>) follows. Well done!',
+        fb_bad='Remember the recipe: move the object to the front, then add <em>was/were</em> + past participle. The answer is: <em>"The suspect was arrested."</em>',
+    )
 
     st.divider()
 
-    # ── Q2
-    st.markdown("**Question 2 of 3** — Convert this sentence to Passive Voice:")
-    st.code('"The curator displayed the painting."', language=None)
-
-    q2_options = [
-        "The curator was displayed the painting.",
-        "The painting was displayed by the curator.",
-        "The painting displayed the curator.",
-    ]
-    if not st.session_state.q2_done:
-        choice2 = st.radio("Choose the correct passive sentence:", q2_options, key="q2", index=None)
-        if st.button("Submit Answer", key="q2_btn"):
-            if choice2 is not None:
-                st.session_state.q2_done = True
-                st.session_state.q2_correct = (choice2 == q2_options[1])
-                st.rerun()
-    else:
-        if st.session_state.q2_correct:
-            st.markdown('<div class="fb ok">✅ <strong>Brilliant!</strong> "The painting" moves to the front, "was displayed" is the passive verb, and "by the curator" tells us the doer.</div>', unsafe_allow_html=True)
-        else:
-            st.markdown('<div class="fb bad">❌ The correct passive is: <em>"The painting was displayed by the curator."</em> The object becomes the new subject.</div>', unsafe_allow_html=True)
+    quiz_block(
+        2,
+        "Convert this sentence to Passive Voice:",
+        '"The curator displayed the painting."',
+        ["The curator was displayed the painting.",
+         "The painting was displayed by the curator.",
+         "The painting displayed the curator."],
+        correct_idx=1,
+        fb_ok='"The painting" moves to the front, "was displayed" is the passive verb, and "by the curator" tells us the doer.',
+        fb_bad='The correct passive is: <em>"The painting was displayed by the curator."</em> The object becomes the new subject.',
+    )
 
     st.divider()
 
-    # ── Q3
-    st.markdown("**Question 3 of 3** — Which sentence is in the Passive Voice?")
-
-    q3_options = [
-        "Witnesses filmed the incident.",
-        "The incident was filmed by witnesses.",
-        "The witnesses ran away quickly.",
-    ]
-    if not st.session_state.q3_done:
-        choice3 = st.radio("Select the passive sentence:", q3_options, key="q3", index=None)
-        if st.button("Submit Answer", key="q3_btn"):
-            if choice3 is not None:
-                st.session_state.q3_done = True
-                st.session_state.q3_correct = (choice3 == q3_options[1])
-                st.rerun()
-    else:
-        if st.session_state.q3_correct:
-            st.markdown('<div class="fb ok">✅ <strong>Perfect!</strong> "The incident was filmed by witnesses" is passive — "was filmed" (to be + past participle) is the giveaway. Ready for the Headline Builder!</div>', unsafe_allow_html=True)
-        else:
-            st.markdown('<div class="fb bad">❌ The passive sentence is: <em>"The incident was filmed by witnesses."</em> Look for the <em>was/were + past participle</em> pattern.</div>', unsafe_allow_html=True)
+    quiz_block(
+        3,
+        "Which sentence is in the Passive Voice?",
+        "Select the passive sentence below:",
+        ["Witnesses filmed the incident.",
+         "The incident was filmed by witnesses.",
+         "The witnesses ran away quickly."],
+        correct_idx=1,
+        fb_ok='"The incident was filmed by witnesses" is passive — "was filmed" (to be + past participle) is the giveaway. Ready for the Headline Builder!',
+        fb_bad='The passive sentence is: <em>"The incident was filmed by witnesses."</em> Look for the <em>was/were + past participle</em> pattern.',
+    )
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SLIDE 5 – Headline Builder
@@ -442,22 +461,40 @@ elif slide == 6:
     selected = st.radio("Choose a sentence to convert:", list(prompts.keys()), key="prompt_sel", index=None)
 
     if selected:
-        st.markdown(f"**💡 Hint:** {prompts[selected][2]}")
+        # Show hint only after clicking
+        if not st.session_state.get("hint_show", False):
+            if st.button("💡 Show Hint", key="hint_btn"):
+                st.session_state["hint_show"] = True
+                st.rerun()
+        else:
+            st.markdown(f"**💡 Hint:** {prompts[selected][2]}")
+
         user_answer = st.text_input("Your passive sentence:", placeholder="Type your passive version here…", key="writing_ans")
 
-        if st.button("Check My Answer", disabled=not user_answer.strip()):
-            ans = user_answer.lower().strip()
-            correct_phrase, keyword, _ = prompts[selected]
-            has_passive_verb = any(w in ans for w in ["is ", "are ", "was ", "were "])
-            is_correct = correct_phrase in ans
+        if st.button("Check My Answer", disabled=not (user_answer or "").strip()):
+            st.session_state.writing_checked = True
+            st.session_state["writing_ans_stored"] = user_answer
+            st.session_state.writing_fb_show = False
+            st.rerun()
 
-            if is_correct:
-                st.markdown('<div class="fb ok">✅ <strong>Excellent work!</strong> Your sentence uses the passive voice correctly — the object is at the front and you\'ve used <em>was/were + past participle</em>. A real journalist\'s technique!</div>', unsafe_allow_html=True)
-                st.balloons()
-            elif has_passive_verb:
-                st.markdown('<div class="fb mid">🟡 <strong>Good start!</strong> You\'ve included a passive verb (was/were) ✓ — double-check that the original <em>object</em> is now the subject and that the past participle is correct.</div>', unsafe_allow_html=True)
+        if st.session_state.writing_checked:
+            if not st.session_state.writing_fb_show:
+                if st.button("💬 Reveal Feedback", key="writing_fb_btn"):
+                    st.session_state.writing_fb_show = True
+                    st.rerun()
             else:
-                st.markdown('<div class="fb bad">❌ <strong>Keep trying!</strong> Remember: move the object to the front, add <em>was/were</em>, then the past participle. Example: "A chef cooked the meal" → <em>"The meal was cooked by a chef."</em></div>', unsafe_allow_html=True)
+                ans = st.session_state.get("writing_ans_stored", "").lower().strip()
+                correct_phrase, keyword, _ = prompts[selected]
+                has_passive_verb = any(w in ans for w in ["is ", "are ", "was ", "were "])
+                is_correct = correct_phrase in ans
+
+                if is_correct:
+                    st.markdown('<div class="fb ok">✅ <strong>Excellent work!</strong> Your sentence uses the passive voice correctly — the object is at the front and you\'ve used <em>was/were + past participle</em>. A real journalist\'s technique!</div>', unsafe_allow_html=True)
+                    st.balloons()
+                elif has_passive_verb:
+                    st.markdown('<div class="fb mid">🟡 <strong>Good start!</strong> You\'ve included a passive verb (was/were) ✓ — double-check that the original <em>object</em> is now the subject and that the past participle is correct.</div>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<div class="fb bad">❌ <strong>Keep trying!</strong> Remember: move the object to the front, add <em>was/were</em>, then the past participle. Example: "A chef cooked the meal" → <em>"The meal was cooked by a chef."</em></div>', unsafe_allow_html=True)
     else:
         st.info("👆 Select a sentence above to get started.")
 
@@ -494,4 +531,5 @@ with col_next:
         if st.button("🔄 Start Again", use_container_width=True):
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
+            st.session_state.slide = 1
             st.rerun()
